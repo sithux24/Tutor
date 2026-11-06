@@ -159,7 +159,7 @@ label.chip{display:inline-flex;align-items:center}
         <button data-v="hint" aria-pressed="true">Hints first</button>
         <button data-v="full" aria-pressed="false">Full solutions</button>
       </div></div>
-    <div><h3>Gemini key</h3><div class="row"><button class="chip" id="chg-key">Change key</button><span id="modelinfo" style="font-size:13px;color:var(--muted)"></span></div></div>
+    <div><h3>Gemini key</h3><div class="row"><button class="chip" id="chg-key">Change key</button><button class="chip" id="test-key">Test connection</button><span id="modelinfo" style="font-size:13px;color:var(--muted)"></span></div></div>
     <div><h3>Syllabus</h3>
       <div class="seg" id="seg-syl">
         <button data-v="lk" aria-pressed="true">Sri Lanka A/L</button>
@@ -255,29 +255,45 @@ function gextract(j){const c=j.candidates&&j.candidates[0];let t='';if(c&&c.cont
 async function geminiCall(model,body,opts,key){
   const stream=!!opts.onText;
   const url='https://generativelanguage.googleapis.com/v1beta/models/'+model+(stream?':streamGenerateContent?alt=sse':':generateContent');
-  let res;
-  try{res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body),signal:opts.signal})}
-  catch(e){if(e.name==='AbortError')throw gerr('cancelled');throw gerr('network','No internet connection to Google.')}
-  if(!res.ok){
-    let msg='';try{const j=await res.json();msg=(j.error&&j.error.message)||''}catch(e){}
-    if(res.status===401||res.status===403||(res.status===400&&/API key|API_KEY/i.test(msg)))throw gerr('not_granted',msg);
-    if(res.status===404)throw gerr('model_unavailable',msg);
-    if(res.status===429)throw gerr('rate_limited',msg);
-    if(res.status===413)throw gerr('prompt_too_large',msg);
-    if(res.status===400&&/image|mime|inline|media/i.test(msg))throw gerr('image_rejected',msg);
-    throw gerr('error',msg||('HTTP '+res.status));
-  }
-  let text='',finish='';
-  if(!stream){const x=gextract(await res.json());text=x.text;finish=x.blocked?'SAFETY':x.finish}
-  else{
-    const rd=res.body.getReader(),dec=new TextDecoder();let buf='';
-    try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
-      while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(!d||d==='[DONE]')continue;
-        try{const x=gextract(JSON.parse(d));if(x.text){text+=x.text;opts.onText({text,delta:x.text})}if(x.finish)finish=x.finish;if(x.blocked)finish='SAFETY'}catch(e){}}}}
-    catch(e){if(e.name==='AbortError'){const c=gerr('cancelled');c.text=text;throw c}throw gerr('network','The connection dropped.')}
-  }
-  if(!text.trim())throw gerr(finish==='SAFETY'||finish==='PROHIBITED_CONTENT'?'refused':'empty_completion');
-  return{text,truncated:finish==='MAX_TOKENS'};
+  const ac=new AbortController();let timedOut=false,to;
+  const arm=ms=>{clearTimeout(to);to=setTimeout(()=>{timedOut=true;ac.abort()},ms)};
+  const onAbort=()=>ac.abort();
+  if(opts.signal){if(opts.signal.aborted)throw gerr('cancelled');opts.signal.addEventListener('abort',onAbort)}
+  const done=()=>{clearTimeout(to);if(opts.signal)opts.signal.removeEventListener('abort',onAbort)};
+  const fail=e=>{if(timedOut)return gerr('timeout','Gemini did not answer in time.');if(e&&e.name==='AbortError')return gerr('cancelled');return e&&e.code?e:gerr('network','The connection to Google failed.')};
+  arm(stream?45000:90000);
+  try{
+    let res;
+    try{res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body),signal:ac.signal})}
+    catch(e){throw fail(e)}
+    if(!res.ok){
+      let msg='';try{const j=await res.json();msg=(j.error&&j.error.message)||''}catch(e){}
+      if(res.status===401||res.status===403||(res.status===400&&/API key|API_KEY/i.test(msg)))throw gerr('not_granted',msg);
+      if(res.status===404)throw gerr('model_unavailable',msg);
+      if(res.status===429)throw gerr('rate_limited',msg);
+      if(res.status===413)throw gerr('prompt_too_large',msg);
+      if(res.status===400&&/image|mime|inline|media/i.test(msg))throw gerr('image_rejected',msg);
+      throw gerr('error',msg||('HTTP '+res.status));
+    }
+    let text='',finish='';
+    const take=d=>{if(!d||d==='[DONE]')return;try{const x=gextract(JSON.parse(d));if(x.text){text+=x.text;opts.onText({text,delta:x.text})}if(x.finish)finish=x.finish;if(x.blocked)finish='SAFETY'}catch(e){}};
+    if(!stream){const x=gextract(await res.json());text=x.text;finish=x.blocked?'SAFETY':x.finish}
+    else{
+      const rd=res.body.getReader(),dec=new TextDecoder();let buf='';
+      try{for(;;){const{done:dn,value}=await rd.read();if(dn)break;arm(45000);buf+=dec.decode(value,{stream:true});let i;
+        while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(line.startsWith('data:'))take(line.slice(5).trim())}}
+        buf+=dec.decode();for(const line of buf.split('\n')){const l=line.trim();if(l.startsWith('data:'))take(l.slice(5).trim())}}
+      catch(e){const f=fail(e);if(f.code==='cancelled')f.text=text;throw f}
+    }
+    if(!text.trim())throw gerr(finish==='SAFETY'||finish==='PROHIBITED_CONTENT'?'refused':'empty_completion',finish?('Finish reason: '+finish):'');
+    return{text,truncated:finish==='MAX_TOKENS'};
+  }finally{done()}
+}
+function thinkCfg(model){
+  if(/gemini-2\.5-flash-lite/.test(model))return null;
+  if(/gemini-2\.5/.test(model))return{thinkingBudget:1024};
+  const m=model.match(/gemini-(\d+)/);if(m&&+m[1]>=3)return{thinkingLevel:'low'};
+  return null;
 }
 async function gemini(messages,opts={}){
   const key=getKey();
@@ -289,14 +305,22 @@ async function gemini(messages,opts={}){
     if(i===messages.length-1&&m.role==='user'&&opts.images&&opts.images.length)for(const im of opts.images)parts.push({inline_data:{mime_type:im.type||'image/jpeg',data:await b64(im)}});
     contents.push({role:m.role==='assistant'?'model':'user',parts});
   }
-  const body={contents,generationConfig:{}};
-  if(opts.json)body.generationConfig.responseMimeType='application/json';
   const tier=opts.modelTier||'default';
   const order=[...new Set([MODELS[tier]||MODELS.default,MODELS.default,MODELS.quick])];
   let last;
   for(let k=0;k<order.length;k++){
-    try{return await geminiCall(order[k],body,opts,key)}
-    catch(e){last=e;const more=k<order.length-1;if(more&&(e.code==='model_unavailable'||(e.code==='rate_limited'&&tier==='complex')))continue;throw e}
+    const model=order[k],more=k<order.length-1;
+    const body={contents,generationConfig:{}};
+    if(opts.json)body.generationConfig.responseMimeType='application/json';
+    const tc=opts.fast?thinkCfg(model):null;if(tc)body.generationConfig.thinkingConfig=tc;
+    const run=async o=>{try{return await geminiCall(model,body,o,key)}catch(e){if(e.code==='error'&&body.generationConfig.thinkingConfig&&/think/i.test(e.message||'')){delete body.generationConfig.thinkingConfig;return await geminiCall(model,body,o,key)}throw e}};
+    try{
+      try{return await run(opts)}
+      catch(e){
+        if((e.code==='network'||e.code==='empty_completion')&&opts.onText){const r=await run(Object.assign({},opts,{onText:undefined}));opts.onText({text:r.text,delta:r.text});return r}
+        throw e;
+      }
+    }catch(e){last=e;if(more&&(e.code==='model_unavailable'||e.code==='timeout'||(e.code==='rate_limited'&&tier==='complex')))continue;throw e}
   }
   throw last;
 }
@@ -487,8 +511,9 @@ async function send(text){
   let hist=S.turns.slice(-14);while(hist.length&&hist[0].role!=='user')hist.shift();
   const ctl=new AbortController();S.ctl=ctl;
   let full='';
+  const t0=Date.now(),iv=setInterval(()=>{if(!S.busy){clearInterval(iv);return}if(full)return;const sec=Math.round((Date.now()-t0)/1000);body.innerHTML='<span class="dots"><i></i><i></i><i></i></span>'+(sec>=4?' <span style="color:var(--muted);font-size:13px">Waiting for Gemini, '+sec+'s</span>':'')},1000);
   try{
-    const r=await sample(hist.map((m,i)=>i===0?{role:m.role,content:instructions()+'\n\n--- The conversation starts here ---\n\n'+m.content}:m),{cache:false,signal:ctl.signal,modelTier:S.deep?'complex':'default',
+    const r=await sample(hist.map((m,i)=>i===0?{role:m.role,content:instructions()+'\n\n--- The conversation starts here ---\n\n'+m.content}:m),{cache:false,signal:ctl.signal,fast:!S.deep,modelTier:S.deep?'complex':'default',
       images:imgs.length?imgs.map(i=>i.blob):undefined,onText:({text})=>{full=text;paint(body,text)}});
     full=r.text;cancelAnimationFrame(raf);
     const {shown,spoken}=splitSpoken(full);body.innerHTML=md(shown);hydrate(body);addListen(body,spoken||plainSpeech(shown));
@@ -503,7 +528,7 @@ async function send(text){
     if(e&&e.text){const sp=splitSpoken(e.text);body.innerHTML=md(sp.shown);hydrate(body);S.turns.push({role:'assistant',content:sp.shown})}
     else{body.closest('.msg').remove();S.turns.pop()}
     if(code==='cancelled')return;
-    const m={not_granted:'Your Gemini key is missing or was refused. Paste a valid key in the box at the top.',network:'Could not reach Google. Check your internet connection.',model_unavailable:'That Gemini model is not available on your key. Change your key to refresh the model list.',bad_json:'The tutor answered in the wrong format. Try again.',rate_limited:'Gemini free-tier limit reached. Wait a minute and try again.',
+    const m={not_granted:'Your Gemini key is missing or was refused. Paste a valid key in the box at the top.',network:'Could not reach Google. Check your internet connection.',timeout:'Gemini took too long to answer. Try again, or ask a shorter question.',model_unavailable:'That Gemini model is not available on your key. Change your key to refresh the model list.',bad_json:'The tutor answered in the wrong format. Try again.',rate_limited:'Gemini free-tier limit reached. Wait a minute and try again.',
       image_rejected:'One of the images could not be read. Try a different photo or file type (JPEG or PNG).',
       prompt_too_large:'That document is too long. Remove it or upload fewer pages.',refused:'Gemini declined that input. Try rephrasing the question.',
       empty_completion:'No answer came back. Try asking in a different way.',};
@@ -656,7 +681,7 @@ function record(topic,sc,mx){
   const d=ymd(new Date());prog.days[d]=(prog.days[d]||0)+1;saveProg();
 }
 function streak(){let n=0;const d=new Date();if(!prog.days[ymd(d)])d.setDate(d.getDate()-1);while(prog.days[ymd(d)]){n++;d.setDate(d.getDate()-1)}return n}
-function errNote(e){const m={not_granted:'Your Gemini key is missing or was refused. Paste a valid key in the box at the top.',rate_limited:'Gemini free-tier limit reached. Wait a minute and try again.',network:'Could not reach Google. Check your internet connection.',image_rejected:'That image could not be read. Try a JPEG or PNG.',refused:'Gemini declined that input. Try again.',bad_json:'The tutor answered in the wrong format. Try again.'};if(e&&e.code==='not_granted')showKeyBox(true);note(m[e&&e.code]||('Something went wrong'+(e&&e.message?': '+String(e.message).slice(0,140):'. Check your connection and try again.')))}
+function errNote(e){const m={not_granted:'Your Gemini key is missing or was refused. Paste a valid key in the box at the top.',rate_limited:'Gemini free-tier limit reached. Wait a minute and try again.',network:'Could not reach Google. Check your internet connection.',timeout:'Gemini took too long to answer. Try again, or ask a shorter question.',image_rejected:'That image could not be read. Try a JPEG or PNG.',refused:'Gemini declined that input. Try again.',bad_json:'The tutor answered in the wrong format. Try again.'};if(e&&e.code==='not_granted')showKeyBox(true);note(m[e&&e.code]||('Something went wrong'+(e&&e.message?': '+String(e.message).slice(0,140):'. Check your connection and try again.')))}
 function needSample(){if(!getKey()){showKeyBox(true);note('Paste your free Gemini key first.',5000);return false}return true}
 function openSheet(id){stopSpeech();stopListen();$('#app').inert=true;$(id).hidden=false;$(id).querySelector('.icon').focus()}
 function closeSheets(){document.querySelectorAll('.sheet').forEach(x=>x.hidden=true);$('#app').inert=false}
@@ -989,6 +1014,12 @@ chat.addEventListener('click',e=>{if(e.target.closest('.talkcta'))talkStart()});
 applySubject();
 $('#keysave').onclick=saveKey;$('#keyin').addEventListener('keydown',e=>{if(e.key==='Enter')saveKey()});
 $('#chg-key').onclick=()=>{$('#settings').hidden=true;$('#gear').setAttribute('aria-expanded','false');showKeyBox(true)};
+$('#test-key').onclick=async()=>{
+  if(!getKey()){showKeyBox(true);return}
+  note('Testing '+MODELS.default+'…');const t0=Date.now();
+  try{const r=await sample('Reply with the single word OK.',{modelTier:'default'});note('Works: '+MODELS.default+' answered in '+((Date.now()-t0)/1000).toFixed(1)+' s.',9000)}
+  catch(e){note('Test failed ('+(e.code||'error')+'): '+String(e.message||'').slice(0,220),14000)}
+};
 modelInfo();if(!getKey())showKeyBox(true);
 syncSettings();syncMic();welcome();
 if('speechSynthesis' in window)speechSynthesis.getVoices();
