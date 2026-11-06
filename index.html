@@ -1,0 +1,998 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Proof Room</title><meta name="theme-color" content="#1f4fd8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Proof%20Room%22%2C%22short_name%22%3A%22Proof%20Room%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f3f6f9%22%2C%22theme_color%22%3A%22%231f4fd8%22%7D"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Young+Serif&display=swap">
+<style>
+/* Layout: one-screen phone app. Header, topic strip, scrolling chat on graph paper, docked composer. */
+:root{
+  --bg:#f3f6f9; --surface:#ffffff; --fg:#14202e; --muted:#586a7d; --line:#d3dce5; --grid:#e3eaf1;
+  --accent:#1f4fd8; --on-accent:#ffffff; --accent-soft:#e3ebff; --pencil:#c8372d; --ok:#1c7a4b; --warn:#a86a00;
+  --font-display:"Young Serif",Georgia,"Times New Roman",serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1820; --surface:#17232e; --fg:#e8eef4; --muted:#98a9ba; --line:#28384a; --grid:#16222d;
+  --accent:#ffc857; --on-accent:#1a1405; --accent-soft:#2b2a1d; --pencil:#ff8576; --ok:#6fd29c; --warn:#ffc857;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1820; --surface:#17232e; --fg:#e8eef4; --muted:#98a9ba; --line:#28384a; --grid:#16222d;
+  --accent:#ffc857; --on-accent:#1a1405; --accent-soft:#2b2a1d; --pencil:#ff8576; --ok:#6fd29c; --warn:#ffc857;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0;overflow-x:hidden}
+button,textarea,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column;max-width:760px;margin:0 auto}
+header{display:flex;align-items:center;gap:8px;padding:10px 0 6px}
+.brand{font-family:var(--font-display);font-size:22px;letter-spacing:.2px;flex:1;min-width:0;white-space:nowrap}
+.brand small{display:block;font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:-2px}
+.icon{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none}
+.icon svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+#settings{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px;display:grid;gap:12px;margin-bottom:6px}
+#settings h3{margin:0 0 6px;font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button,.chip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:14px;min-height:36px}
+.seg button[aria-pressed="true"],.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.toggles{display:grid;gap:8px}
+.toggles label{display:flex;align-items:center;gap:10px;font-size:15px}
+.toggles input{width:20px;height:20px;accent-color:var(--accent)}
+.toggles span small{display:block;color:var(--muted);font-size:13px}
+#topics{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:none}
+#topics::-webkit-scrollbar{display:none}
+#topics .chip{flex:none;white-space:nowrap}
+#topics .quiz{border-color:var(--pencil);color:var(--pencil);background:transparent;font-weight:500}
+#chat{flex:1;min-height:0;overflow-y:auto;border-top:1px solid var(--line);margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:16px max(16px,env(safe-area-inset-left,0px));
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;background-position:-1px -1px;display:flex;flex-direction:column;gap:18px;scroll-behavior:smooth}
+.welcome{margin:auto 0;padding:8px 0}
+.welcome h1{font-family:var(--font-display);font-weight:400;font-size:28px;line-height:1.15;margin:0 0 8px;text-wrap:balance}
+.welcome p{margin:0 0 14px;color:var(--muted);max-width:46ch}
+.examples{display:grid;gap:8px}
+.examples button{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;font-size:15px}
+.examples button b{display:block;font-family:var(--font-mono);font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
+.msg{display:flex;flex-direction:column;gap:6px;max-width:100%;min-width:0}
+.msg.user{align-items:flex-end}
+.msg.user .bubble{background:var(--accent);color:var(--on-accent);border-radius:16px 16px 4px 16px;padding:10px 14px;max-width:88%;overflow-wrap:anywhere;white-space:pre-wrap}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.thumbs img{height:84px;width:auto;border-radius:10px;border:1px solid var(--line);object-fit:cover}
+.who{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.msg.tutor .body{background:var(--surface);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:12px 14px;min-width:0;overflow-wrap:anywhere}
+.body>*:first-child{margin-top:0}.body>*:last-child{margin-bottom:0}
+.body p{margin:.55em 0}
+.body ul,.body ol{margin:.5em 0;padding-left:1.3em}
+.body li{margin:.2em 0}
+.body h4,.body h3,.body h2{font-family:var(--font-display);font-weight:400;margin:.8em 0 .3em;font-size:18px}
+.body code{font-family:var(--font-mono);font-size:.9em;background:var(--bg);padding:1px 5px;border-radius:5px}
+.body pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;font-family:var(--font-mono);font-size:13px}
+.body pre code{background:none;padding:0}
+math{font-size:1.12em}
+.mathblock{overflow-x:auto;margin:.5em 0;padding:.2em 0}
+.mathblock math{display:block math;text-align:center}
+.graph{margin:.7em 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.graph canvas{display:block;width:100%}
+.legend{display:flex;gap:12px;flex-wrap:wrap;padding:6px 10px;border-top:1px solid var(--line);font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.dots{display:inline-flex;gap:4px;padding:4px 0}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:b 1s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.err{color:var(--pencil)}
+#dock{padding:8px 0 10px;display:grid;gap:8px}
+#note{display:none;font-size:14px;color:var(--fg);background:var(--accent-soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+#note.show{display:block}
+#tray{display:flex;gap:8px;flex-wrap:wrap}
+#tray:empty{display:none}
+.att{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:4px 6px 4px 6px;font-size:13px;max-width:100%}
+.att img{height:30px;width:30px;object-fit:cover;border-radius:6px}
+.att span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.att button{border:0;background:none;font-size:18px;line-height:1;color:var(--muted);padding:2px 6px}
+.att.doc{border-color:var(--accent)}
+#addrow{display:flex;gap:8px;flex-wrap:wrap}
+#addrow button{border:1px dashed var(--muted);background:transparent;border-radius:10px;padding:8px 12px;font-size:14px}
+#dock{grid-template-columns:minmax(0,1fr)}
+#input{width:0}
+.examples button p{margin:0}
+#composer{display:flex;gap:8px;align-items:flex-end}
+#input{flex:1;min-width:0;resize:none;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:10px 12px;max-height:140px;line-height:1.4}
+#input::placeholder{color:var(--muted)}
+.round{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none}
+.round svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#send{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+#mic.on{background:var(--pencil);border-color:var(--pencil);color:#fff;animation:pulse 1.3s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--pencil) 50%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);pointer-events:none}
+label.round,label.chip{cursor:pointer}
+label.chip{display:inline-flex;align-items:center}
+.msg.tutor .acts{display:flex;gap:8px}
+.acts .chip{min-height:32px;padding:4px 12px;font-size:13px}
+#topics .chip.talk{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:500}
+#talkbar{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:10px 12px}
+.orb{width:64px;height:64px;border-radius:50%;border:0;flex:none;display:grid;place-items:center;background:var(--accent);color:var(--on-accent)}
+.orb svg{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#talkbar[data-st="listen"] .orb{background:var(--pencil);color:#fff;animation:pulse 1.3s infinite}
+#talkbar[data-st="speak"] .orb{animation:ring 1.6s infinite}
+#talkbar[data-st="think"] .orb,#talkbar[data-st="paused"] .orb{background:var(--muted);color:var(--bg)}
+@keyframes ring{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}100%{box-shadow:0 0 0 16px transparent}}
+#tb-mid{flex:1;min-width:0}
+#tb-state{display:block;font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#tb-text{margin:2px 0 0;font-size:15px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:1.35em;overflow-wrap:anywhere}
+.sheet{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet-in{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
+.sheet-body{flex:1;min-height:0;overflow-y:auto;padding:4px 0 28px;display:grid;gap:12px;align-content:start}
+.card{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;min-width:0}
+.card p{margin:0}
+.card p.lab{margin:0 0 8px}
+.lab{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.btn{border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);border-radius:12px;padding:10px 16px;font-weight:500;min-height:44px}
+.btn[disabled]{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.card .row+.row,.card .row+.lab,.card .seg+.lab,.card .seg+.row,.card p+.row,.card .body+.row,.card .field+.row,.card .seg+div{margin-top:14px}
+.field{width:100%;resize:vertical;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;line-height:1.4;margin-bottom:10px}
+.score{font-family:var(--font-display);font-size:34px;line-height:1.1;font-variant-numeric:tabular-nums;margin-bottom:8px!important}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;min-width:0}
+.stat b{display:block;font-family:var(--font-display);font-weight:400;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.trow{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line)}
+.trow:first-of-type{border-top:0}
+.trow em{font-style:normal;font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.trow small{grid-column:1/-1;color:var(--muted);font-size:13px}
+.bar{grid-column:1/-1;height:8px;border-radius:99px;background:var(--grid);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head><body>
+<div id="app">
+  <header>
+    <div class="brand">Proof Room<small id="brandsub">Sri Lankan A/L tutor</small></div>
+    <button class="icon" id="open-practice" aria-label="Practice questions" title="Practice"><svg viewBox="0 0 24 24"><path d="M4 20l1-4L16.500 4.500a2.100 2.100 0 0 1 3 3L8 19z"/><path d="M14 7l3 3"/></svg></button>
+    <button class="icon" id="open-progress" aria-label="Progress" title="Progress"><svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg></button>
+    <button class="icon" id="newchat" aria-label="New chat" title="New chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="icon" id="gear" aria-label="Settings" aria-expanded="false" aria-controls="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+
+  <section id="settings" hidden>
+    <div><h3>Teaching style</h3>
+      <div class="seg" id="seg-mode">
+        <button data-v="hint" aria-pressed="true">Hints first</button>
+        <button data-v="full" aria-pressed="false">Full solutions</button>
+      </div></div>
+    <div><h3>Gemini key</h3><div class="row"><button class="chip" id="chg-key">Change key</button><span id="modelinfo" style="font-size:13px;color:var(--muted)"></span></div></div>
+    <div><h3>Syllabus</h3>
+      <div class="seg" id="seg-syl">
+        <button data-v="lk" aria-pressed="true">Sri Lanka A/L</button>
+        <button data-v="ex" aria-pressed="false">A-Level maths</button>
+        <button data-v="ib" aria-pressed="false">IB HL</button>
+        <button data-v="ibsl" aria-pressed="false">IB SL</button>
+      </div></div>
+    <div id="subj-wrap"><h3>Subject</h3>
+      <div class="seg" id="seg-subj">
+        <button data-v="cm" aria-pressed="true">Combined Maths</button>
+        <button data-v="ph" aria-pressed="false">Physics</button>
+        <button data-v="ch" aria-pressed="false">Chemistry</button>
+      </div></div>
+    <div><h3>Language</h3>
+      <div class="seg" id="seg-lang">
+        <button data-v="en" aria-pressed="true">English</button>
+        <button data-v="si" aria-pressed="false">සිංහල</button>
+        <button data-v="ta" aria-pressed="false">தமிழ்</button>
+      </div></div>
+    <div class="toggles">
+      <label><input type="checkbox" id="t-speak" checked><span>Read answers aloud</span></label>
+      <label hidden><input type="checkbox" id="t-hands"><span>Hands-free conversation<small>Listens again after each spoken answer</small></span></label>
+      <label><input type="checkbox" id="t-deep"><span>Think harder<small>Slower, better for tough proofs</small></span></label>
+    </div>
+  </section>
+
+  <section id="keybox" class="card" hidden style="margin-bottom:8px"><p class="lab">One-time setup</p>
+    <p>This tutor runs on Google Gemini. Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, paste it below and tap Save. The key stays on this device and is sent only to Google.</p>
+    <div class="row" style="margin-top:10px"><input id="keyin" class="field" type="password" placeholder="Paste your key (starts with AIza)" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Gemini API key" style="margin:0;flex:1;min-width:180px"><button class="btn" id="keysave">Save</button></div>
+    <p id="keymsg" style="font-size:13px;color:var(--muted);margin-top:8px" role="status"></p></section>
+  <nav id="topics" aria-label="Topics"></nav>
+
+  <main id="chat" aria-live="polite"></main>
+
+  <div id="dock">
+    <div id="note" role="status"></div>
+    <div id="tray"></div>
+        <div id="talkbar" hidden data-st="">
+      <button class="orb" id="tb-orb" aria-label="Tap to send, interrupt or continue"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <div id="tb-mid"><span id="tb-state">Listening</span><p id="tb-text" aria-live="polite"></p></div>
+      <button class="chip" id="tb-end">End</button>
+    </div>
+    <div id="composer">
+      <label class="round" id="plus" for="file" role="button" aria-label="Attach a photo, image or PDF" title="Attach a photo, image or PDF"><svg viewBox="0 0 24 24"><path d="M21 12.5l-8.5 8.5a5 5 0 0 1-7-7L14 5.500a3.500 3.500 0 0 1 5 5L10.500 19a2 2 0 0 1-3-3l8-8"/></svg></label>
+      <label class="round" for="cam" role="button" aria-label="Take a photo" title="Take a photo"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></label>
+      <textarea id="input" rows="1" placeholder="Ask a question or tap the mic" aria-label="Message"></textarea>
+      <button class="round" id="mic" aria-label="Speak" aria-pressed="false"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button class="round" id="send" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M5 12l14-7-5 14-2.500-5.500z"/></svg></button>
+    </div>
+  </div>
+</div>
+<section class="sheet" id="practice" hidden aria-label="Practice"><div class="sheet-in">
+  <header><div class="brand">Practice<small>Marked like an exam</small></div><button class="icon" id="pr-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="sheet-body">
+    <div class="card" id="pr-setup"><p class="lab">Topic</p><div class="seg" id="pr-top"></div><p class="lab">Difficulty</p><div class="seg" id="pr-lvl"></div><div id="pr-fmtwrap"><p class="lab">Format</p><div class="seg" id="pr-fmt"></div></div><div class="row"><button class="btn" id="pr-new">New question</button></div></div>
+    <div id="pr-q" style="display:grid;gap:12px"></div>
+  </div></div></section>
+<section class="sheet" id="progress" hidden aria-label="Progress"><div class="sheet-in">
+  <header><div class="brand">Progress<small>From your practice</small></div><button class="icon" id="pg-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="sheet-body" id="pg-body"></div></div></section>
+<input type="file" id="pfile" class="vh" accept="image/*" multiple>
+<input type="file" id="file" class="vh" accept="image/*,application/pdf,.pdf" multiple>
+<input type="file" id="cam" class="vh" accept="image/*" capture="environment">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/mhchem.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const LANGS={en:{label:'English',tts:'en-GB',stt:'en-GB'},si:{label:'Sinhala',tts:'si-LK',stt:'si-LK'},ta:{label:'Tamil',tts:'ta-LK',stt:'ta-LK'}};
+let TOPICS=['Algebra & functions','Trigonometry','Differentiation','Integration','Sequences & series','Vectors & coordinates','Complex numbers','Mechanics','Probability & statistics'];
+const GEN_TOPICS=TOPICS.slice();
+let EXAMPLES=[
+ ['Calculus','Differentiate $y = x^2 e^{3x}$ and find its stationary points.'],
+ ['Proof','Prove by induction that $\\sum_{r=1}^{n} r^3 = \\left(\\tfrac{n(n+1)}{2}\\right)^2$.'],
+ ['Statistics','Why does the Normal approximation to a Binomial need a continuity correction?'],
+ ['Mechanics','A 3 kg block slides down a rough 30° slope with μ = 0.2. Find its acceleration.']
+];
+const SYL={ex:'Edexcel and Cambridge International A-Level Mathematics',ib:'IB Mathematics: Analysis and Approaches, Higher Level',ibsl:'IB Mathematics: Analysis and Approaches, Standard Level',lk:'Sri Lankan G.C.E. A/L Combined Mathematics'};
+const S={syl:'lk',subj:'cm',lang:'en',mode:'hint',speak:true,hands:false,deep:false,topic:'',turns:[],docs:[],imgs:[],busy:false,ctl:null};
+try{const o=JSON.parse(localStorage.getItem('proofroom2')||'{}');for(const k of ['syl','subj','lang','mode','speak','deep'])if(o[k]!==undefined)S[k]=o[k]}catch(e){}
+const save=()=>{try{localStorage.setItem('proofroom2',JSON.stringify({syl:S.syl,subj:S.subj,lang:S.lang,mode:S.mode,speak:S.speak,deep:S.deep}))}catch(e){}};
+
+/* ---------- Gemini engine ---------- */
+const KEYK='proofroom-gemini-key',MODK='proofroom-gemini-models';
+const getKey=()=>{try{return localStorage.getItem(KEYK)||''}catch(e){return ''}};
+let MODELS={default:'gemini-2.5-flash',quick:'gemini-2.5-flash-lite',complex:'gemini-2.5-pro'};
+try{const m=JSON.parse(localStorage.getItem(MODK)||'null');if(m&&m.default)MODELS=m}catch(e){}
+const gerr=(code,message)=>{const e=new Error(message||code);e.code=code;return e};
+const b64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
+function gextract(j){const c=j.candidates&&j.candidates[0];let t='';if(c&&c.content&&c.content.parts)for(const p of c.content.parts)if(p.text&&!p.thought)t+=p.text;return{text:t,finish:c&&c.finishReason,blocked:!!(j.promptFeedback&&j.promptFeedback.blockReason)}}
+async function geminiCall(model,body,opts,key){
+  const stream=!!opts.onText;
+  const url='https://generativelanguage.googleapis.com/v1beta/models/'+model+(stream?':streamGenerateContent?alt=sse':':generateContent');
+  let res;
+  try{res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body),signal:opts.signal})}
+  catch(e){if(e.name==='AbortError')throw gerr('cancelled');throw gerr('network','No internet connection to Google.')}
+  if(!res.ok){
+    let msg='';try{const j=await res.json();msg=(j.error&&j.error.message)||''}catch(e){}
+    if(res.status===401||res.status===403||(res.status===400&&/API key|API_KEY/i.test(msg)))throw gerr('not_granted',msg);
+    if(res.status===404)throw gerr('model_unavailable',msg);
+    if(res.status===429)throw gerr('rate_limited',msg);
+    if(res.status===413)throw gerr('prompt_too_large',msg);
+    if(res.status===400&&/image|mime|inline|media/i.test(msg))throw gerr('image_rejected',msg);
+    throw gerr('error',msg||('HTTP '+res.status));
+  }
+  let text='',finish='';
+  if(!stream){const x=gextract(await res.json());text=x.text;finish=x.blocked?'SAFETY':x.finish}
+  else{
+    const rd=res.body.getReader(),dec=new TextDecoder();let buf='';
+    try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
+      while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(!d||d==='[DONE]')continue;
+        try{const x=gextract(JSON.parse(d));if(x.text){text+=x.text;opts.onText({text,delta:x.text})}if(x.finish)finish=x.finish;if(x.blocked)finish='SAFETY'}catch(e){}}}}
+    catch(e){if(e.name==='AbortError'){const c=gerr('cancelled');c.text=text;throw c}throw gerr('network','The connection dropped.')}
+  }
+  if(!text.trim())throw gerr(finish==='SAFETY'||finish==='PROHIBITED_CONTENT'?'refused':'empty_completion');
+  return{text,truncated:finish==='MAX_TOKENS'};
+}
+async function gemini(messages,opts={}){
+  const key=getKey();
+  if(!key){showKeyBox(true);throw gerr('not_granted','Add your Gemini key first.')}
+  if(typeof messages==='string')messages=[{role:'user',content:messages}];
+  const contents=[];
+  for(let i=0;i<messages.length;i++){
+    const m=messages[i],parts=[{text:m.content}];
+    if(i===messages.length-1&&m.role==='user'&&opts.images&&opts.images.length)for(const im of opts.images)parts.push({inline_data:{mime_type:im.type||'image/jpeg',data:await b64(im)}});
+    contents.push({role:m.role==='assistant'?'model':'user',parts});
+  }
+  const body={contents,generationConfig:{}};
+  if(opts.json)body.generationConfig.responseMimeType='application/json';
+  const tier=opts.modelTier||'default';
+  const order=[...new Set([MODELS[tier]||MODELS.default,MODELS.default,MODELS.quick])];
+  let last;
+  for(let k=0;k<order.length;k++){
+    try{return await geminiCall(order[k],body,opts,key)}
+    catch(e){last=e;const more=k<order.length-1;if(more&&(e.code==='model_unavailable'||(e.code==='rate_limited'&&tier==='complex')))continue;throw e}
+  }
+  throw last;
+}
+async function geminiJson(prompt,opts={}){
+  const r=await gemini(prompt,Object.assign({},opts,{json:true,onText:undefined}));
+  const t=r.text.trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+  try{return JSON.parse(t)}catch(e){const m=t.match(/\{[\s\S]*\}/);if(m)try{return JSON.parse(m[0])}catch(e2){}throw gerr('bad_json','The answer was not in the expected format.')}
+}
+let sample=Object.assign((m,o)=>gemini(m,o),{json:geminiJson}),lim={images:{maxCount:12}};
+async function listModels(key){
+  const out=[];let tok='';
+  for(let k=0;k<5;k++){
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200'+(tok?'&pageToken='+encodeURIComponent(tok):''),{headers:{'x-goog-api-key':key}});
+    if(r.status===400||r.status===401||r.status===403)throw gerr('not_granted');
+    if(!r.ok)throw gerr('error','HTTP '+r.status);
+    const j=await r.json();out.push(...(j.models||[]));tok=j.nextPageToken;if(!tok)break;
+  }
+  return out;
+}
+function pickModels(list){
+  const ok=list.filter(m=>/^models\/gemini-/.test(m.name)&&(m.supportedGenerationMethods||[]).includes('generateContent')&&!/image|tts|live|audio|embed|robotics|computer|native|customtools|exp|-\d{3}$|-\d{2}-\d{2}/.test(m.name));
+  const info=ok.map(m=>{const n=m.name.slice(7),x=n.match(/^gemini-(\d+(?:\.\d+)?)-(flash-lite|flash|pro)(.*)$/);return x?{n,v:parseFloat(x[1]),t:x[2],pre:/preview/.test(x[3])?1:0}:null}).filter(Boolean);
+  const best=t=>{const c=info.filter(i=>i.t===t).sort((a,b)=>a.pre-b.pre||b.v-a.v||a.n.length-b.n.length);return c.length?c[0].n:null};
+  const d=best('flash')||best('pro')||'gemini-2.5-flash';
+  return{default:d,quick:best('flash-lite')||d,complex:best('pro')||d};
+}
+function showKeyBox(show){const b=$('#keybox');b.hidden=!show;if(show){$('#keymsg').textContent='';setTimeout(()=>$('#keyin').focus(),50)}}
+function modelInfo(){$('#modelinfo').textContent=getKey()?'Using '+MODELS.default:'No key yet'}
+async function saveKey(){
+  const v=$('#keyin').value.trim(),m=$('#keymsg');
+  if(!v){m.textContent='Paste your key first.';return}
+  m.textContent='Checking your key…';
+  try{
+    const list=await listModels(v);
+    MODELS=pickModels(list);
+    try{localStorage.setItem(KEYK,v);localStorage.setItem(MODK,JSON.stringify(MODELS))}catch(e){m.textContent='Your browser blocked saving the key. Turn off private mode and try again.';return}
+    $('#keyin').value='';m.textContent='Key works. Using '+MODELS.default+'.';modelInfo();setTimeout(()=>showKeyBox(false),900);
+  }catch(e){
+    if(e.code==='not_granted'){m.textContent='Google refused that key. Copy it again from aistudio.google.com/apikey and paste the whole thing.';return}
+    try{localStorage.setItem(KEYK,v)}catch(e2){}
+    $('#keyin').value='';m.textContent='Saved, but I could not reach Google to check it. Try sending a question.';modelInfo();setTimeout(()=>showKeyBox(false),1500);
+  }
+}
+
+/* ---------- helpers ---------- */
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+var noteT;
+function note(t,ms){const n=$('#note');n.textContent=t;n.classList.add('show');clearTimeout(noteT);if(ms)noteT=setTimeout(()=>n.classList.remove('show'),ms)}
+$('#note').onclick=()=>$('#note').classList.remove('show');
+function tex(t,display){
+  try{if(window.katex)return katex.renderToString(t.trim(),{output:'mathml',displayMode:display,throwOnError:false})}catch(e){}
+  return '<code>'+esc(t)+'</code>';
+}
+function inline(s){
+  return s.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*\w])\*(?!\s)([^*]+?)\*(?!\w)/g,'$1<em>$2</em>');
+}
+function md(src){
+  const store=[];const keep=h=>'@@'+(store.push(h)-1)+'@@';
+  src=src.replace(/```(\w*)[^\n]*\n([\s\S]*?)(```|$)/g,(m,lang,body,end)=>{
+    if(lang==='graph'&&end)return '\n'+keep('<div class="graph" data-spec="'+encodeURIComponent(body)+'"><canvas></canvas><div class="legend"></div></div>')+'\n';
+    return '\n'+keep('<pre><code>'+esc(body)+'</code></pre>')+'\n';
+  });
+  src=src.replace(/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]/g,(m,a,b)=>'\n'+keep('<div class="mathblock">'+tex(a||b,true)+'</div>')+'\n');
+  src=src.replace(/\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g,(m,a,b)=>keep(tex(a||b,false)));
+  const lines=esc(src).split('\n');let out='',para=[],list=null;
+  const fp=()=>{if(para.length){out+='<p>'+inline(para.join('<br>'))+'</p>';para=[]}};
+  const fl=()=>{if(list){out+='</'+list+'>';list=null}};
+  for(const raw of lines){
+    const l=raw.trimEnd();let m;
+    if(!l.trim()){fp();fl();continue}
+    if(/^@@\d+@@$/.test(l.trim())){fp();fl();out+=l.trim();continue}
+    if((m=l.match(/^\s{0,3}#{1,4}\s+(.*)/))){fp();fl();out+='<h3>'+inline(m[1])+'</h3>';continue}
+    if((m=l.match(/^\s*[-*•]\s+(.*)/))){fp();if(list!=='ul'){fl();out+='<ul>';list='ul'}out+='<li>'+inline(m[1])+'</li>';continue}
+    if((m=l.match(/^\s*\d+[.)]\s+(.*)/))){fp();if(list!=='ol'){fl();out+='<ol>';list='ol'}out+='<li>'+inline(m[1])+'</li>';continue}
+    fl();para.push(l);
+  }
+  fp();fl();
+  return out.replace(/@@(\d+)@@/g,(m,i)=>store[+i]);
+}
+
+/* ---------- graphing ---------- */
+const FN=new Set(['sin','cos','tan','asin','acos','atan','sinh','cosh','tanh','sqrt','abs','ln','log','exp','floor','ceil','pi','e','x']);
+function compile(expr){
+  let s=expr.toLowerCase().replace(/^\s*(y|f\(x\)|g\(x\)|h\(x\))\s*=\s*/,'').replace(/\^/g,'**').replace(/[×·]/g,'*').replace(/π/g,'pi').trim();
+  if(!s||!/^[0-9a-z+\-*\/().,\s]*$/.test(s))return null;
+  s=s.replace(/(\d)\s*([a-z(])/g,'$1*$2').replace(/\)\s*([0-9a-z(])/g,')*$1').replace(/\bx\s*(?=\()/g,'x*').replace(/\b(pi|e)\s*(?=[0-9a-z(])/g,'$1*').replace(/\bx\s*(?=[a-z])/g,'x*');
+  const ids=s.match(/[a-z]+/g)||[];
+  if(ids.some(i=>!FN.has(i)))return null;
+  s=s.replace(/[a-z]+/g,i=>i==='x'?'x':i==='pi'?'Math.PI':i==='e'?'Math.E':i==='ln'?'Math.log':i==='log'?'Math.log10':'Math.'+i);
+  try{const f=new Function('x','return ('+s+')');f(1);return f}catch(e){return null}
+}
+function niceStep(span){const raw=span/6,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p;return(m<1.5?1:m<3?2:m<7?5:10)*p}
+const fmt=v=>String(+v.toPrecision(4));
+function drawGraph(box){
+  const spec=decodeURIComponent(box.dataset.spec||'');const cv=box.querySelector('canvas'),lg=box.querySelector('.legend');
+  const cs=getComputedStyle(document.documentElement);const col=n=>cs.getPropertyValue(n).trim();
+  const palette=[col('--accent'),col('--pencil'),col('--ok'),col('--warn')];
+  let xr=[-6,6],yr=null;const fns=[];
+  for(const raw of spec.split('\n')){
+    const line=raw.trim();if(!line)continue;let m;
+    if((m=line.match(/^(x?range)\s*:\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)/i))){xr=[+m[2],+m[3]];continue}
+    if((m=line.match(/^yrange\s*:\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)/i))){yr=[+m[1],+m[2]];continue}
+    const f=compile(line);if(f)fns.push({f,label:line.replace(/\*\*/g,'^')});
+  }
+  if(!fns.length||!(xr[1]>xr[0])){box.textContent='Could not read this graph.';return}
+  const W=Math.max(220,box.clientWidth||320),H=Math.round(Math.min(280,W*0.72)),dpr=window.devicePixelRatio||1;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.height=H+'px';
+  const g=cv.getContext('2d');g.scale(dpr,dpr);
+  const N=Math.min(600,W*2),pts=fns.map(({f})=>{const a=[];for(let i=0;i<=N;i++){const x=xr[0]+(xr[1]-xr[0])*i/N;let y;try{y=f(x)}catch(e){y=NaN}a.push([x,Number.isFinite(y)?y:NaN])}return a});
+  if(!yr){const v=pts.flat().map(p=>p[1]).filter(y=>Number.isFinite(y)&&Math.abs(y)<1e3).sort((a,b)=>a-b);
+    if(v.length){let lo=v[Math.floor(v.length*0.02)],hi=v[Math.ceil(v.length*0.98)-1];if(hi-lo<1e-6){lo-=1;hi+=1}const pad=(hi-lo)*0.1;yr=[lo-pad,hi+pad]}else yr=[-5,5]}
+  const L=34,R=10,T=10,B=22,pw=W-L-R,ph=H-T-B;
+  const X=x=>L+(x-xr[0])/(xr[1]-xr[0])*pw,Y=y=>T+(1-(y-yr[0])/(yr[1]-yr[0]))*ph;
+  g.font='11px '+col('--font-mono');g.lineWidth=1;
+  const sx=niceStep(xr[1]-xr[0]),sy=niceStep(yr[1]-yr[0]);
+  g.strokeStyle=col('--line');g.fillStyle=col('--muted');g.textAlign='center';
+  for(let x=Math.ceil(xr[0]/sx)*sx;x<=xr[1]+1e-9;x+=sx){g.beginPath();g.moveTo(X(x),T);g.lineTo(X(x),T+ph);g.stroke();g.fillText(fmt(x),X(x),H-7)}
+  g.textAlign='right';
+  for(let y=Math.ceil(yr[0]/sy)*sy;y<=yr[1]+1e-9;y+=sy){g.beginPath();g.moveTo(L,Y(y));g.lineTo(L+pw,Y(y));g.stroke();g.fillText(fmt(y),L-4,Y(y)+4)}
+  g.strokeStyle=col('--fg');g.lineWidth=1.4;
+  if(xr[0]<0&&xr[1]>0){g.beginPath();g.moveTo(X(0),T);g.lineTo(X(0),T+ph);g.stroke()}
+  if(yr[0]<0&&yr[1]>0){g.beginPath();g.moveTo(L,Y(0));g.lineTo(L+pw,Y(0));g.stroke()}
+  g.save();g.beginPath();g.rect(L,T,pw,ph);g.clip();g.lineWidth=2.2;g.lineJoin='round';
+  const span=yr[1]-yr[0];
+  pts.forEach((a,i)=>{g.strokeStyle=palette[i%palette.length];g.beginPath();let pen=false,prev=NaN;
+    for(const [x,y] of a){if(!Number.isFinite(y)||(Number.isFinite(prev)&&Math.abs(y-prev)>span*3)){pen=false;prev=y;continue}
+      if(pen)g.lineTo(X(x),Y(y));else{g.moveTo(X(x),Y(y));pen=true}prev=y}
+    g.stroke()});
+  g.restore();
+  lg.innerHTML=fns.map((f,i)=>'<span><i style="background:'+palette[i%palette.length]+'"></i>'+esc(f.label)+'</span>').join('');
+}
+function hydrate(el){el.querySelectorAll('.graph').forEach(drawGraph)}
+
+/* ---------- chat view ---------- */
+const chat=$('#chat');
+function welcome(){
+  chat.innerHTML='<div class="welcome"><h1>Bring me a problem, spoken or on paper.</h1><p>Tap the mic and talk it through, or attach a photo of your working or a past-paper PDF. I will guide you step by step, check your algebra, and plot graphs when they help.</p><div class="examples">'+
+    EXAMPLES.map((e,i)=>'<button data-i="'+i+'"><b>'+e[0]+'</b>'+md(e[1])+'</button>').join('')+'</div><button class="btn talkcta" style="margin-top:14px">Start a voice conversation</button></div>';
+  chat.querySelectorAll('.examples button').forEach(b=>b.onclick=()=>{const t=EXAMPLES[+b.dataset.i][1];$('#input').value=t;send(t)});
+}
+function nearBottom(){return chat.scrollHeight-chat.scrollTop-chat.clientHeight<120}
+function addUser(text,urls){
+  chat.querySelector('.welcome')?.remove();
+  const d=document.createElement('div');d.className='msg user';
+  if(urls.length){const t=document.createElement('div');t.className='thumbs';urls.forEach(u=>{const i=document.createElement('img');i.src=u;i.alt='Attached image';t.append(i)});d.append(t)}
+  const b=document.createElement('div');b.className='bubble';b.textContent=text;d.append(b);chat.append(d);chat.scrollTop=chat.scrollHeight;
+}
+function addTutor(){
+  const d=document.createElement('div');d.className='msg tutor';d.innerHTML='<div class="who">Proof Room</div><div class="body"><span class="dots"><i></i><i></i><i></i></span></div>';
+  chat.append(d);chat.scrollTop=chat.scrollHeight;return d.querySelector('.body');
+}
+const splitSpoken=t=>{const m=t.match(/\n*\s*SPOKEN:\s*([\s\S]*)$/i);return m?{shown:t.slice(0,m.index).trim(),spoken:m[1].trim()}:{shown:t.replace(/\n*\s*SPOKE?N?:?\s*$/i,'').trim(),spoken:''}};
+let raf=0;
+function paint(body,text){
+  cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{const stick=nearBottom();body.innerHTML=md(splitSpoken(text).shown);hydrate(body);if(stick)chat.scrollTop=chat.scrollHeight});
+}
+
+/* ---------- prompt ---------- */
+function instructions(){
+  const L=LANGS[S.lang].label;
+  let t=roleLine()+' The student is talking to you on a phone, sometimes by voice.\n\n'+
+  (S.mode==='hint'
+   ?'TEACHING STYLE: hints first. Ask what the student has tried, then give one small hint or one guiding question at a time. Do not reveal the final answer or the full solution until the student asks to see it, or has had two attempts.\n'
+   :'TEACHING STYLE: full solutions. Give a complete, clearly numbered worked solution, then one line naming the key idea and one common mistake.\n')+
+  '\nRULES:\n- Reply in '+L+'. Keep all maths in LaTeX.\n- Inline maths uses $...$ and display maths uses $$...$$ on its own lines. Use no other LaTeX delimiters.\n- Be concise for a phone screen: short paragraphs, usually under 180 words unless a full solution needs more.\n- Check every calculation before you state it. When the student\'s working has an error, find the first wrong line and explain it kindly.\n- To plot, add a fenced code block with language graph: one expression in x per line (for example y = x^2 - 3x), plus optional lines "range: -5, 5" and "yrange: -10, 10". Use only sin cos tan asin acos atan sqrt abs ln log exp pi e and ^. Plot only when it helps understanding.\n- If an image or document is unclear, say exactly what you cannot read and ask.\n- Quizzes: set one exam-style question at a time with no solution, wait for the answer, then mark it with method (M) and accuracy (A) marks and say what to improve.\n- End every reply with a final line starting SPOKEN: followed by one to three plain sentences to read aloud, with no symbols or LaTeX (say "x squared", "the integral of"), in '+L+'.\n';
+  t+=syllabusBlock();
+  if(T.on)t+='\nVOICE CONVERSATION MODE (overrides the length guidance above): the student is talking to you out loud and hears your reply, like a real conversation. Reply in two or three short, natural sentences, ask one question at a time, and keep going until the problem is solved. Show equations on screen in LaTeX, but say them in words. The SPOKEN line is what is read aloud, so make it the complete spoken version of your reply, up to about 60 words.\n';
+  if(S.topic)t+='\nCurrent topic focus: '+S.topic+'.\n';
+  if(S.docs.length){let d='';for(const x of S.docs)d+='\n--- '+x.name+' ('+x.pages+' pages, extracted text, may be imperfect) ---'+x.text;t+='\nThe student uploaded these documents:'+d.slice(0,90000)+'\n'}
+  return t;
+}
+
+/* ---------- send ---------- */
+async function send(text){
+  text=(text||'').trim();
+  if(S.busy||(!text&&!S.imgs.length))return;
+  if(!getKey()){showKeyBox(true);note('Paste your free Gemini key first.',5000);return}
+  stopSpeech();primeSpeech();stopListen(true);$('#note').classList.remove('show');
+  let imgs=S.imgs.slice();
+  const canImg=!!(lim&&lim.images);
+  if(false){}
+  else if(imgs.length&&imgs.length>lim.images.maxCount){note('Only the first '+lim.images.maxCount+' images were sent.');imgs=imgs.slice(0,lim.images.maxCount)}
+  const q=text||'Please look at the attached material and help me with it.';
+  addUser(q,imgs.map(i=>i.url));
+  S.turns.push({role:'user',content:q+(imgs.length?'\n\n[Attached '+imgs.length+' image(s): '+imgs.map(i=>i.label).join(', ')+']':'')});
+  S.imgs=[];renderTray();$('#input').value='';autosize();
+  const body=addTutor();setBusy(true);
+  let hist=S.turns.slice(-14);while(hist.length&&hist[0].role!=='user')hist.shift();
+  const ctl=new AbortController();S.ctl=ctl;
+  let full='';
+  try{
+    const r=await sample(hist.map((m,i)=>i===0?{role:m.role,content:instructions()+'\n\n--- The conversation starts here ---\n\n'+m.content}:m),{cache:false,signal:ctl.signal,modelTier:S.deep?'complex':'default',
+      images:imgs.length?imgs.map(i=>i.blob):undefined,onText:({text})=>{full=text;paint(body,text)}});
+    full=r.text;cancelAnimationFrame(raf);
+    const {shown,spoken}=splitSpoken(full);body.innerHTML=md(shown);hydrate(body);addListen(body,spoken||plainSpeech(shown));
+    if(r.truncated)body.insertAdjacentHTML('beforeend','<p class="err">The answer was cut short. Ask me to continue.</p>');
+    S.turns.push({role:'assistant',content:shown});
+    chat.scrollTop=chat.scrollHeight;
+    setBusy(false);
+    try{speakOut(spoken||plainSpeech(shown))}catch(err){speaking=false;note('Could not read the answer aloud. Tap Listen to try again.',5000);if(T.on)talkListen()}
+  }catch(e){
+    cancelAnimationFrame(raf);setBusy(false);
+    const code=e&&e.code;
+    if(e&&e.text){const sp=splitSpoken(e.text);body.innerHTML=md(sp.shown);hydrate(body);S.turns.push({role:'assistant',content:sp.shown})}
+    else{body.closest('.msg').remove();S.turns.pop()}
+    if(code==='cancelled')return;
+    const m={not_granted:'Your Gemini key is missing or was refused. Paste a valid key in the box at the top.',network:'Could not reach Google. Check your internet connection.',model_unavailable:'That Gemini model is not available on your key. Change your key to refresh the model list.',bad_json:'The tutor answered in the wrong format. Try again.',rate_limited:'Gemini free-tier limit reached. Wait a minute and try again.',
+      image_rejected:'One of the images could not be read. Try a different photo or file type (JPEG or PNG).',
+      prompt_too_large:'That document is too long. Remove it or upload fewer pages.',refused:'Gemini declined that input. Try rephrasing the question.',
+      empty_completion:'No answer came back. Try asking in a different way.',};
+    note(m[code]||('Something went wrong'+(e&&e.message?': '+String(e.message).slice(0,140):'. Check your connection and try again.')));
+    if(code==='not_granted')showKeyBox(true);
+    if(T.on)talkSet('paused','Something went wrong. Tap the orb to try again.');
+  }
+}
+function setBusy(b){
+  S.busy=b;const s=$('#send');
+  s.setAttribute('aria-label',b?'Stop':'Send');
+  s.innerHTML=b?'<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>':'<svg viewBox="0 0 24 24"><path d="M5 12l14-7-5 14-2.500-5.500z"/></svg>';
+}
+$('#send').onclick=()=>{if(S.busy){S.ctl&&S.ctl.abort();return}send($('#input').value)};
+
+/* ---------- input ---------- */
+const input=$('#input');
+function autosize(){input.style.height='auto';input.style.height=Math.min(140,input.scrollHeight)+'px'}
+input.addEventListener('input',autosize);
+input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!matchMedia('(pointer:coarse)').matches){e.preventDefault();send(input.value)}});
+
+/* ---------- attachments ---------- */
+function renderTray(){
+  const t=$('#tray');t.innerHTML='';
+  S.docs.forEach((d,i)=>{const a=document.createElement('div');a.className='att doc';a.innerHTML='<span>PDF · '+esc(d.name)+' · '+d.pages+' p</span><button aria-label="Remove document">×</button>';a.querySelector('button').onclick=()=>{S.docs.splice(i,1);renderTray()};t.append(a)});
+  S.imgs.forEach((im,i)=>{const a=document.createElement('div');a.className='att';a.innerHTML='<img alt=""><span>'+esc(im.label)+'</span><button aria-label="Remove image">×</button>';a.querySelector('img').src=im.url;a.querySelector('button').onclick=()=>{URL.revokeObjectURL(im.url);S.imgs.splice(i,1);renderTray()};t.append(a)});
+}
+async function addFiles(files){
+  for(const f of files){
+    if(f.type==='application/pdf'||/\.pdf$/i.test(f.name))await addPdf(f);
+    else if(isImg(f)){const nb=await normImage(f);if(!nb){note('Could not read '+(f.name||'that file')+'. Try a JPEG or PNG.',5000);continue}S.imgs.push({blob:nb,url:URL.createObjectURL(nb),label:f.name||'photo'})}
+    else note('Skipped '+f.name+': only images and PDFs are supported.',4000);
+  }
+  renderTray();
+}
+let _pw='';
+async function pdfWorkerUrl(){
+  const u='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  if(_pw)return _pw;
+  try{const t=await (await fetch(u)).text();_pw=URL.createObjectURL(new Blob([t],{type:'text/javascript'}))}catch(e){_pw=u}
+  return _pw;
+}
+async function addPdf(f){
+  if(!window.pdfjsLib){note('The PDF reader did not load. Try a photo of the page instead.');return}
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc=await pdfWorkerUrl();
+    note('Reading '+f.name+'…');
+    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+    let text='',scanned=[];const n=Math.min(pdf.numPages,40);
+    for(let i=1;i<=n;i++){
+      const pg=await pdf.getPage(i),tc=await pg.getTextContent();
+      const s=tc.items.map(x=>x.str).join(' ').replace(/\s+/g,' ').trim();
+      if(s.length<80)scanned.push(i);
+      text+='\n[Page '+i+'] '+s;if(text.length>60000)break;
+    }
+    const maxImg=(lim&&lim.images&&lim.images.maxCount)||0;let rendered=0;
+    for(const i of scanned.slice(0,Math.min(4,maxImg))){
+      const pg=await pdf.getPage(i),vp=pg.getViewport({scale:1.4}),c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+      await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.82));
+      if(blob){S.imgs.push({blob,url:URL.createObjectURL(blob),label:f.name+' p.'+i});rendered++}
+    }
+    S.docs.push({name:f.name,pages:pdf.numPages,text:text.slice(0,60000)});
+    note(rendered?'Added '+f.name+'. Pages with little text were attached as images.':'Added '+f.name+'. Ask me about any page or question.',5000);
+  }catch(e){note('Could not read that PDF ('+((e&&e.message)||'unknown error').slice(0,80)+'). Try a photo of the page instead.')}
+}
+for(const id of ['#file','#cam'])$(id).onchange=async e=>{const fs=[...e.target.files];e.target.value='';await addFiles(fs)};
+input.addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(fs.length){e.preventDefault();addFiles(fs)}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer?.files?.length)addFiles([...e.dataTransfer.files])});
+
+/* ---------- voice ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,listening=false,voiceBlocked=false,speaking=false,spokeNoVoice=false;
+function syncMic(){const m=$('#mic');m.classList.toggle('on',listening);m.setAttribute('aria-pressed',String(listening));m.setAttribute('aria-label',listening?'Stop listening':'Speak')}
+function stopListen(quiet){if(rec){try{rec.onend=null;rec.abort()}catch(e){}rec=null}listening=false;syncMic()}
+function startListen(){
+  if(!SR){note('Voice input is not supported by this browser. Use your keyboard\'s microphone key to dictate.');return}
+  if(S.busy||listening)return;
+  stopSpeech();
+  const base=input.value?input.value.trim()+' ':'';let finalText='';
+  rec=new SR();rec.lang=LANGS[S.lang].stt;rec.interimResults=true;rec.continuous=false;
+  rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)finalText+=r[0].transcript;else interim+=r[0].transcript}input.value=base+finalText+interim;autosize()};
+  rec.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){voiceBlocked=false;S.hands=false;syncSettings();note('Microphone access was denied. Tap the lock icon next to the address bar, allow the microphone for this site, then try again.')}
+    else if(e.error==='language-not-supported')note('Voice input is not available for this language on your device. Type or dictate with your keyboard instead.');
+    else if(e.error!=='aborted'&&e.error!=='no-speech')note('Voice error: '+e.error,4000);
+  };
+  rec.onend=()=>{listening=false;syncMic();rec=null;
+    if(finalText.trim()&&!voiceBlocked)send(input.value);
+    else if(S.hands&&!voiceBlocked){S.hands=false;syncSettings();note('I did not catch anything, so hands-free is paused.',4000)}};
+  try{rec.start();listening=true;syncMic()}catch(e){rec=null;note('Could not start the microphone.')}
+}
+$('#mic').onclick=()=>{if(listening)stopListen();else startListen()};
+function plainSpeech(t){return t.replace(/\$\$?[^$]+\$\$?/g,' ').replace(/[#*`_>]/g,'').replace(/\s+/g,' ').trim().slice(0,400)}
+function pickVoice(){const vs=speechSynthesis.getVoices(),code=LANGS[S.lang].tts.toLowerCase(),p=code.split('-')[0];return vs.find(v=>v.lang.toLowerCase()===code)||vs.find(v=>v.lang.toLowerCase().startsWith(p))||null}
+var speakSeq=0;
+function stopSpeech(){speakSeq++;if('speechSynthesis' in window)speechSynthesis.cancel();speaking=false}
+
+
+/* ---------- settings & topics ---------- */
+function syncSettings(){
+  document.querySelectorAll('#seg-mode button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===S.mode)));
+  document.querySelectorAll('#seg-syl button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===S.syl)));
+  document.querySelectorAll('#seg-subj button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===S.subj)));
+  document.querySelectorAll('#seg-lang button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===S.lang)));
+  $('#t-speak').checked=S.speak;$('#t-hands').checked=S.hands;$('#t-deep').checked=S.deep;
+}
+document.querySelectorAll('#seg-mode button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.v;save();syncSettings()});
+document.querySelectorAll('#seg-syl button').forEach(b=>b.onclick=()=>{S.syl=b.dataset.v;save();applySubject()});
+document.querySelectorAll('#seg-subj button').forEach(b=>b.onclick=()=>{S.subj=b.dataset.v;save();applySubject()});
+document.querySelectorAll('#seg-lang button').forEach(b=>b.onclick=()=>{S.lang=b.dataset.v;spokeNoVoice=false;save();syncSettings()});
+$('#t-speak').onchange=e=>{S.speak=e.target.checked;if(!S.speak)stopSpeech();save()};
+$('#t-hands').onchange=e=>{S.hands=e.target.checked;if(S.hands){S.speak=true;syncSettings();save();startListen()}else stopListen()};
+$('#t-deep').onchange=e=>{S.deep=e.target.checked;save()};
+$('#gear').onclick=()=>{const s=$('#settings');s.hidden=!s.hidden;$('#gear').setAttribute('aria-expanded',String(!s.hidden))};
+$('#newchat').onclick=()=>{stopSpeech();stopListen();if(S.ctl)S.ctl.abort();S.turns=[];S.imgs.forEach(i=>URL.revokeObjectURL(i.url));S.imgs=[];S.docs=[];renderTray();setBusy(false);$('#note').classList.remove('show');welcome()};
+(function(){
+  const t=$('#topics');const q=document.createElement('button');q.className='chip quiz';q.textContent='Quiz me';
+  q.textContent='Practice';q.onclick=()=>openPractice(S.topic);
+  t.append(q);
+  const cw=document.createElement('label');cw.className='chip quiz';cw.htmlFor='file';cw.textContent='Check my working';
+  cw.addEventListener('click',()=>{input.value='Please check my working line by line and tell me where the first mistake is.';autosize()});
+  t.append(cw);
+  const tk=document.createElement('button');tk.className='chip quiz talk';tk.textContent='Talk';tk.onclick=()=>talkStart();t.prepend(tk);
+  renderTopicChips();
+})();
+
+
+/* ---------- progress & practice ---------- */
+const ymd=d=>d.toLocaleDateString('en-CA');
+const PKEY='proofroom-progress';
+let prog={topics:{},days:{}},progDoc=null,saving=Promise.resolve();
+try{const o=JSON.parse(localStorage.getItem(PKEY)||'null');if(o&&o.topics)prog={topics:o.topics,days:o.days||{}}}catch(e){}
+function saveProg(){
+  try{localStorage.setItem(PKEY,JSON.stringify(prog))}catch(e){}
+  if(progDoc){const snap=JSON.parse(JSON.stringify(prog));saving=saving.then(()=>progDoc.set({topics:snap.topics,days:snap.days})).catch(()=>{})}
+}
+(async()=>{try{
+  const u=window.claude&&await window.claude.use('user'),d=window.claude&&await window.claude.use('db');
+  if(!u||!d)return;const id=await u.id();if(!id)return;
+  progDoc=d.doc('data/users/'+id+'/progress');
+  const s=await progDoc.get(),v=s.exists&&s.data();
+  if(v&&v.topics){prog={topics:v.topics,days:v.days||{}};fixKeys()}else if(Object.keys(prog.topics).length)saveProg();
+  if(!$('#progress').hidden)renderProgress();
+}catch(e){progDoc=null}})();
+function record(topic,sc,mx){
+  const r=prog.topics[topic]||(prog.topics[topic]={att:0,sc:0,mx:0,full:0});
+  r.att++;r.sc+=sc;r.mx+=mx;if(sc>=mx)r.full++;
+  const d=ymd(new Date());prog.days[d]=(prog.days[d]||0)+1;saveProg();
+}
+function streak(){let n=0;const d=new Date();if(!prog.days[ymd(d)])d.setDate(d.getDate()-1);while(prog.days[ymd(d)]){n++;d.setDate(d.getDate()-1)}return n}
+function errNote(e){const m={not_granted:'Your Gemini key is missing or was refused. Paste a valid key in the box at the top.',rate_limited:'Gemini free-tier limit reached. Wait a minute and try again.',network:'Could not reach Google. Check your internet connection.',image_rejected:'That image could not be read. Try a JPEG or PNG.',refused:'Gemini declined that input. Try again.',bad_json:'The tutor answered in the wrong format. Try again.'};if(e&&e.code==='not_granted')showKeyBox(true);note(m[e&&e.code]||('Something went wrong'+(e&&e.message?': '+String(e.message).slice(0,140):'. Check your connection and try again.')))}
+function needSample(){if(!getKey()){showKeyBox(true);note('Paste your free Gemini key first.',5000);return false}return true}
+function openSheet(id){stopSpeech();stopListen();$('#app').inert=true;$(id).hidden=false;$(id).querySelector('.icon').focus()}
+function closeSheets(){document.querySelectorAll('.sheet').forEach(x=>x.hidden=true);$('#app').inert=false}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheets()});
+$('#pr-close').onclick=closeSheets;$('#pg-close').onclick=closeSheets;
+
+/* practice */
+const LEVELS=[['core','Core'],['hard','Challenging'],['top','Top grade']];
+const P={fmt:'struct',topic:'',level:'hard',q:null,res:null,hint:'',sol:false,ans:'',imgs:[],busy:'',seen:[],recorded:false};
+function setupRender(){
+  const t=$('#pr-top');t.innerHTML='';
+  [['','Any topic'],...TOPICS.map(x=>[x,x])].forEach(([v,l])=>{const b=document.createElement('button');b.textContent=l;b.setAttribute('aria-pressed',String(P.topic===v));b.onclick=()=>{P.topic=v;setupRender()};t.append(b)});
+  const l=$('#pr-lvl');l.innerHTML='';
+  LEVELS.forEach(([v,n])=>{const b=document.createElement('button');b.textContent=n;b.setAttribute('aria-pressed',String(P.level===v));b.onclick=()=>{P.level=v;setupRender()};l.append(b)});
+  const code=subjCode(),showF=code==='ph'||code==='ch';$('#pr-fmtwrap').hidden=!showF;if(!showF)P.fmt='struct';
+  const fm=$('#pr-fmt');fm.innerHTML='';[['struct','Structured / essay'],['mcq','Multiple choice']].forEach(([v,n])=>{const b=document.createElement('button');b.textContent=n;b.setAttribute('aria-pressed',String(P.fmt===v));b.onclick=()=>{P.fmt=v;setupRender()};fm.append(b)});
+  $('#pr-new').disabled=!!P.busy;
+}
+function openPractice(topic){if(topic&&TOPICS.includes(topic))P.topic=topic;setupRender();prRender();openSheet('#practice')}
+function prTray(){
+  const t=$('#ptray');if(!t)return;t.innerHTML='';
+  P.imgs.forEach((im,i)=>{const a=document.createElement('div');a.className='att';a.innerHTML='<img alt=""><span>'+esc(im.label)+'</span><button aria-label="Remove photo">×</button>';a.querySelector('img').src=im.url;a.querySelector('button').onclick=()=>{URL.revokeObjectURL(im.url);P.imgs.splice(i,1);prTray()};t.append(a)});
+}
+function prRender(){
+  const el=$('#pr-q');setupRender();
+  if(P.busy){el.innerHTML='<div class="card"><span class="dots"><i></i><i></i><i></i></span> '+esc(P.busy)+'</div>';return}
+  if(!P.q){el.innerHTML='<div class="card"><p class="lab">Ready when you are</p><p>Pick a topic and a difficulty, then tap New question. Your answer is marked line by line, the way an examiner would.</p></div>';return}
+  const q=P.q;
+  let h='<div class="card"><p class="lab">'+esc(q.topic)+' · '+q.marks+' mark'+(q.marks===1?'':'s')+'</p><div class="body">'+md(q.question)+'</div></div>';
+  h+=q.mcq?'<div class="card"><p class="lab">Your answer</p><div class="row" id="popts">'+['A','B','C','D','E'].map(l=>'<button class="chip opt" data-l="'+l+'" aria-pressed="'+(P.ans===l)+'">'+l+'</button>').join('')+'</div><div class="row"><button class="btn" id="p-check">Check my answer</button><button class="chip" id="p-hint">Hint</button><button class="chip" id="p-sol">'+(P.sol?'Hide':'Show')+' solution</button></div></div>':'<div class="card"><p class="lab">Your answer</p><textarea id="pans" class="field" rows="5" placeholder="Write your working, or attach a photo of it" aria-label="Your answer"></textarea><div class="row" id="ptray"></div><div class="row"><button class="btn" id="p-check">Check my answer</button><label class="chip" for="pfile">Attach photo</label><button class="chip" id="p-hint">Hint</button><button class="chip" id="p-sol">'+(P.sol?'Hide':'Show')+' solution</button></div></div>';
+  if(P.hint)h+='<div class="card"><p class="lab">Hint</p><div class="body">'+md(P.hint)+'</div></div>';
+  if(P.res){const r=P.res,ratio=r.sc/r.mk,c=ratio>=.75?'--ok':ratio>=.4?'--warn':'--pencil';
+    h+='<div class="card"><p class="lab">Marked</p><p class="score" style="color:var('+c+')">'+r.sc+' / '+r.mk+'</p><div class="body">'+md(r.fb)+(r.next?'<p><strong>Next:</strong> '+esc(r.next)+'</p>':'')+'</div><div class="row"><button class="btn" id="p-next">Next question</button><button class="chip" id="p-chat">Discuss in chat</button></div></div>'}
+  if(P.sol)h+='<div class="card"><p class="lab">Worked solution</p><div class="body">'+md(q.solution)+'</div></div>';
+  el.innerHTML=h;
+  const ta=$('#pans');if(ta){ta.value=P.ans;ta.oninput=()=>{P.ans=ta.value}}
+  el.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{P.ans=b.dataset.l;el.querySelectorAll('.opt').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+  $('#p-check').onclick=checkAns;$('#p-hint').onclick=getHint;$('#p-sol').onclick=()=>{P.sol=!P.sol;prRender()};
+  const nx=$('#p-next');if(nx)nx.onclick=newQ;const dc=$('#p-chat');if(dc)dc.onclick=discuss;
+  prTray();
+}
+$('#pfile').onchange=async e=>{const fs=[...e.target.files].filter(isImg);e.target.value='';for(const f of fs){const nb=await normImage(f);if(!nb){note('Could not read '+(f.name||'that file')+'. Try a JPEG or PNG.',5000);continue}P.imgs.push({blob:nb,url:URL.createObjectURL(nb),label:f.name||'photo'})}prTray()};
+$('#pr-new').onclick=()=>newQ();
+async function newQ(){
+  if(P.busy||!needSample())return;
+  P.q=null;P.res=null;P.hint='';P.sol=false;P.ans='';P.recorded=false;P.imgs.forEach(i=>URL.revokeObjectURL(i.url));P.imgs=[];
+  P.busy='Writing a question…';prRender();
+  try{
+    const topic=P.topic||TOPICS[Math.floor(Math.random()*TOPICS.length)];
+const code=subjCode(),mcq=P.fmt==='mcq'&&(code==='ph'||code==='ch'),unit=unitInfo(topic);
+    const lv={core:'standard difficulty',hard:'challenging and multi-step',top:'hard, top-grade, needing insight, like the last part of a paper'}[P.level];
+    const range={core:'4 to 6',hard:'6 to 8',top:'8 to 12'}[P.level];
+    const prompt='You write exam questions for the '+ctxName()+'.\nUnit: "'+topic+'"'+(unit?' (content: '+unit+')':'')+'.\n'+
+      (mcq?'Write ONE multiple-choice question in the style of Paper I, with five options A to E and exactly one correct. Difficulty: '+lv+'.\n':'Write ONE original '+(code==='ph'||code==='ch'?'structured ':'')+'question worth a total of '+range+' marks. Difficulty: '+lv+'.\n')+
+      'Language: '+LANGS[S.lang].label+'.\n'+(P.seen.length?'Do not repeat these earlier questions:\n- '+P.seen.slice(-6).join('\n- ')+'\n':'')+'Variation seed: '+Math.random().toString(36).slice(2,8)+'\nStay inside the syllabus. Work the answer out carefully and check it before you reply. Use $...$ for inline LaTeX and $$...$$ for display LaTeX'+(code==='ch'?'; write chemical formulae and equations with \\ce{...} inside $...$':'')+'. The question must be answerable without a diagram. Return JSON only with these keys: '+
+      (mcq?'"question" (the stem followed by the five options, each on its own line starting with A. B. C. D. E.), "answer" (a single letter), "solution" (two to four sentences saying why the answer is right and why the main distractors are wrong).':'"marks" (integer), "question", "solution" (a worked solution with the mark scheme, labelling method marks M and accuracy marks A), "final_answer" (short plain text).');
+    const j=await sample.json(prompt,{cache:false});
+    if(!j||typeof j.question!=='string'||typeof j.solution!=='string')throw new Error('bad');
+let mk=Math.max(1,Math.min(15,Math.round(Number(j.marks))||6)),letter='';
+    if(mcq){mk=1;letter=String(j.answer||'').trim().toUpperCase().charAt(0);if(!/[A-E]/.test(letter))throw new Error('bad')}
+    P.q={topic,subj:code,mcq,letter,marks:mk,question:j.question,solution:j.solution+(!mcq&&j.final_answer?'\n\n**Answer:** '+j.final_answer:'')};
+    P.seen.push(j.question.slice(0,90));
+  }catch(e){errNote(e)}
+  P.busy='';prRender();
+}
+async function getHint(){
+  if(P.busy||!P.q||!needSample())return;
+  const keep=P.busy;P.busy='Thinking of a hint…';prRender();
+  try{
+    const r=await sample('You are a maths tutor. Give ONE short hint (at most two sentences) for the question below. Do not reveal the answer or the final result. Use $...$ for LaTeX. Reply in '+LANGS[S.lang].label+'.\n\nQuestion:\n'+P.q.question+'\n\nPrivate solution, for reference only:\n'+P.q.solution+'\n\nStudent attempt so far:\n'+(P.ans.trim()||'(nothing yet)'),{cache:false,modelTier:'quick'});
+    P.hint=r.text.trim();
+  }catch(e){errNote(e)}
+  P.busy='';prRender();
+}
+async function checkAns(){
+  if(P.busy||!P.q)return;
+  if(P.q.mcq){
+    const a=(P.ans||'').trim().toUpperCase();if(!/^[A-E]$/.test(a)){note('Pick an option first.',3000);return}
+    const ok=a===P.q.letter;P.res={sc:ok?1:0,mk:1,fb:(ok?'Correct. ':'Not quite. The answer is **'+P.q.letter+'**. ')+P.q.solution,next:''};
+    if(!P.recorded){P.recorded=true;record(P.q.subj+'|'+P.q.topic,ok?1:0,1)}
+    prRender();return;
+  }
+  if(!needSample())return;
+  const ans=P.ans.trim();let imgs=P.imgs.slice();
+  if(!ans&&!imgs.length){note('Write your answer or attach a photo of your working first.',4000);return}
+  const cap=lim&&lim.images?lim.images.maxCount:0;
+  if(false){}
+  else if(imgs.length>cap)imgs=imgs.slice(0,cap);
+  const mk=P.q.marks;P.busy='Marking your answer…';prRender();
+  try{
+    const prompt='You are a fair examiner marking a student\'s answer for '+SYL[S.syl]+'.\n\nQUESTION ('+mk+' marks):\n'+P.q.question+'\n\nMARK SCHEME AND SOLUTION (private, do not quote it in full):\n'+P.q.solution+'\n\nSTUDENT ANSWER:\n'+(ans||'(the working is in the attached image)')+'\n\nAward marks line by line, with follow-through where the method is right. Return JSON only: {"score": integer from 0 to '+mk+', "feedback": "two to five short sentences in '+LANGS[S.lang].label+', LaTeX in $...$, saying what earned marks and the first thing that went wrong", "next_step": "one short sentence on what to practise"}';
+    const j=await sample.json(prompt,{cache:false,modelTier:S.deep?'complex':'default',images:imgs.length?imgs.map(i=>i.blob):undefined});
+    let sc=Math.round(Number(j&&j.score));if(!Number.isFinite(sc))throw new Error('bad');sc=Math.max(0,Math.min(mk,sc));
+    P.res={sc,mk,fb:String(j.feedback||''),next:String(j.next_step||'')};
+    if(!P.recorded){P.recorded=true;record(P.q.subj+'|'+P.q.topic,sc,mk)}
+  }catch(e){errNote(e)}
+  P.busy='';prRender();
+}
+function discuss(){
+  const q=P.q,a=P.ans.trim();closeSheets();
+  send('I am practising this question ('+q.marks+' marks, '+q.topic+'):\n'+q.question+(a?'\n\nMy attempt:\n'+a:'')+(P.res?'\n\nI scored '+P.res.sc+'/'+P.res.mk+'. Help me understand where I lost marks.':'\n\nHelp me with it.'));
+}
+$('#open-practice').onclick=()=>openPractice(S.topic);
+
+/* progress */
+let wipe=false;
+function renderProgress(){
+  const b=$('#pg-body'),ks=Object.keys(prog.topics);
+  const att=ks.reduce((a,k)=>a+prog.topics[k].att,0),sc=ks.reduce((a,k)=>a+prog.topics[k].sc,0),mx=ks.reduce((a,k)=>a+prog.topics[k].mx,0);
+  if(!att){b.innerHTML='<div class="card"><p class="lab">No practice yet</p><p>Answer a few practice questions and your strongest and weakest topics will show up here.</p><div class="row"><button class="btn" id="pg-go">Start practising</button></div></div>';$('#pg-go').onclick=()=>{closeSheets();openPractice()};return}
+  const rows=ks.map(k=>({k,...prog.topics[k],p:prog.topics[k].mx?prog.topics[k].sc/prog.topics[k].mx:0})).sort((a,b)=>a.p-b.p);
+  const weak=rows[0],pct=Math.round(sc/mx*100);
+  let h='<div class="stats"><div class="stat"><b>'+att+'</b><span>Questions</span></div><div class="stat"><b>'+pct+'%</b><span>Marks won</span></div><div class="stat"><b>'+streak()+'</b><span>Day streak</span></div></div>';
+  h+='<div class="card"><p class="lab">Topics, weakest first</p>'+rows.map(r=>{const p=Math.round(r.p*100),c=p>=75?'--ok':p>=50?'--warn':'--pencil';
+    return '<div class="trow"><span>'+esc(keyLabel(r.k))+'</span><em>'+p+'%</em><div class="bar" role="img" aria-label="'+p+' percent"><i style="width:'+p+'%;background:var('+c+')"></i></div><small>'+r.att+' question'+(r.att===1?'':'s')+', '+r.full+' full marks</small></div>'}).join('')+'</div>';
+  h+='<div class="row"><button class="btn" id="pg-weak">Practise '+esc(keyLabel(weak.k))+'</button><button class="chip" id="pg-wipe">'+(wipe?'Tap again to clear':'Clear progress')+'</button></div>';
+  b.innerHTML=h;
+  $('#pg-weak').onclick=()=>practiseKey(weak.k);
+  $('#pg-wipe').onclick=()=>{if(!wipe){wipe=true;renderProgress();setTimeout(()=>{wipe=false;if(!$('#progress').hidden)renderProgress()},4000);return}wipe=false;prog={topics:{},days:{}};saveProg();renderProgress()};
+}
+$('#open-progress').onclick=()=>{wipe=false;renderProgress();openSheet('#progress')};
+
+
+/* ---------- Sri Lankan A/L syllabus (NIE unit outline) ---------- */
+const SUBJ={
+cm:{name:'Combined Mathematics',units:[
+["Algebra","basic algebra, indices and logarithms; equations and simultaneous equations; functions (domain, range, one-to-one, onto, inverse, composite, modulus); quadratic functions and equations; polynomials with remainder and factor theorems; rational functions and partial fractions; inequalities including modulus"],
+["Angular measurement","degree and radian measure, arc length, sector area"],
+["Circular functions","definitions, values at standard angles, graphs, periodicity, general solutions of trigonometric equations"],
+["Trigonometric identities","Pythagorean, compound-angle, double, triple and half-angle, product and sum formulae, a cos x + b sin x = c"],
+["Sine and cosine rules","statements and applications"],
+["Inverse trigonometric functions","definitions, principal values, graphs, problems"],
+["Limits","limit theorems, standard limits, sandwich theorem, one-sided limits, limits at infinity, continuity"],
+["Derivatives","first principles, differentiation rules, inverse trigonometric, exponential and logarithmic functions, implicit and parametric differentiation, higher derivatives"],
+["Applications of derivatives","stationary points, increasing and decreasing functions, maxima and minima, inflection points, concavity, curve sketching, optimisation"],
+["Integration","antiderivatives, definite integrals, fundamental theorem, methods (partial fractions, identities, substitution, by parts), areas and volumes of revolution"],
+["Straight line (coordinate geometry)","distance, section formula, forms of line equations, pencils of lines, angles between lines, perpendicular distance, angle bisectors"],
+["Mathematical induction","divisibility, summations, inequalities"],
+["Series","sigma notation, arithmetic and geometric series, method of differences, partial fractions, infinite series and convergence"],
+["Binomial expansion","binomial theorem for positive integer index, general term, coefficient relations"],
+["Complex numbers","algebra, conjugate, modulus, Argand diagram, polar form, De Moivre's theorem, loci and regions"],
+["Permutations and combinations","counting principle, permutations, combinations"],
+["Matrices","types, operations, transpose, 2 by 2 inverse, simultaneous equations"],
+["Circles","equations, line and circle, tangents, chord of contact, family of circles, two circles, orthogonal circles"],
+["Vectors","vector algebra, position vectors, scalar (dot) and vector (cross) products"],
+["Systems of coplanar forces","resultants, resolution, equilibrium, Lami's theorem, moments, couples, reduction of force systems"],
+["Friction","laws of friction, coefficient and angle of friction, limiting equilibrium"],
+["Jointed rods and frameworks","types of joints, equilibrium at joints, Bow's notation, stress diagrams"],
+["Centre of mass","symmetrical, composite and remaining bodies, centre of gravity, stability"],
+["Motion in a straight line","distance, displacement, velocity, acceleration, equations of motion, graphs, relative motion"],
+["Motion in a plane","vector kinematics, relative velocity, shortest distance, collisions of particles"],
+["Projectiles","components, equation of path, maximum height, time of flight, range"],
+["Newton's laws of motion","three laws, momentum, connected particles, weight and mass, action and reaction"],
+["Work, power and energy","work-energy principle, conservative and dissipative forces, conservation of energy, power, tractive force"],
+["Impulse and collisions","impulse, direct impact, restitution, conservation of momentum, loss of kinetic energy"],
+["Circular motion","angular velocity, horizontal circles, conical pendulum, vertical circles"],
+["Simple harmonic motion","defining equation and solutions, amplitude, period, Hooke's law, horizontal and vertical oscillations"],
+["Probability","sample spaces, events, conditional probability, independence, Bayes' theorem"],
+["Statistics","descriptive statistics, central tendency, quartiles, percentiles, box plots, dispersion, skewness"]
+],rules:"EXAM FORMAT: Combined Mathematics has Paper I (Pure Mathematics) and Paper II (Applied Mathematics). Show complete working the way an examiner expects, state the theorem or result you use (for example Lami's theorem), and use radians unless degrees are given."},
+ph:{name:'Physics',units:[
+["Measurement","introduction to physics and scientific method; physical quantities and units; dimensions and their applications; measuring instruments and error analysis; scalars and vectors"],
+["Mechanics","kinematics in one and two dimensions; resultant of forces and moments; Newton's laws and applications; equilibrium; work, energy and power; rotational and circular motion; fluid dynamics"],
+["Oscillations and waves","simple harmonic motion; mechanical waves; reflection, refraction, interference, diffraction, polarisation; stationary waves in strings; waves in gases; Doppler effect; sound; electromagnetic waves and lasers; geometrical optics; the human eye; optical instruments"],
+["Thermal physics","temperature and thermometers; thermal expansion; gas laws and kinetic theory; heat exchange and specific heat capacity; change of state and latent heat; vapour and humidity; thermodynamics and heat transfer"],
+["Gravitational field","gravitational force and field intensity; potential and potential energy; Earth's field and satellites; escape velocity"],
+["Electric field","Coulomb's law; field intensity and field lines; flux and Gauss's theorem; potential and potential energy; capacitance and energy in capacitors"],
+["Magnetic field","force on current-carrying conductors and moving charges; magnetic fields and the Biot-Savart law; torque on current loops, motors and galvanometers"],
+["Current electricity","current, drift velocity, current density; resistance, resistivity, Ohm's law; energy and power in DC circuits; emf and internal resistance; Kirchhoff's laws; measuring instruments; Wheatstone bridge and potentiometer; electromagnetic induction, generators and transformers"],
+["Electronics","semiconductors and diodes; transistors; operational amplifiers; digital electronics and logic gates"],
+["Mechanical properties of matter","elasticity of solids; viscosity of fluids; surface tension"],
+["Matter and radiation","quantum nature of radiation and black body radiation; photoelectric effect; wave nature of matter; X-rays; radioactivity; atomic nucleus and nuclear energy"]
+],rules:"EXAM FORMAT: Physics Paper I is typically 50 multiple-choice questions with five options; Paper II has structured and essay questions. Quote the formula before substituting, carry SI units through every line, and give sensible significant figures. Use the notation and symbols used in Sri Lankan A/L textbooks."},
+ch:{name:'Chemistry',units:[
+["Atomic structure","cathode rays, Rutherford's model, isotopes, electromagnetic radiation, Bohr theory, quantum numbers and orbitals, electronic configuration, periodic trends"],
+["Structure and bonding","ionic, covalent and dative bonds, Lewis structures, VSEPR shapes, hybridisation, polarity, intermolecular forces, metallic bonding, oxidation numbers"],
+["Chemical calculations","mole concept, relative atomic mass, empirical and molecular formulae, concentration, stoichiometry, titrations, limiting reagent, percentage yield"],
+["Gaseous state of matter","ideal gas equation, gas laws, Dalton's law, kinetic theory, Maxwell-Boltzmann distribution, real gases"],
+["Energetics","enthalpy changes, Hess's law, Born-Haber cycles, bond enthalpies, entropy, Gibbs free energy and spontaneity"],
+["Chemistry of s, p and d block elements","group 1 and 2, groups 13 to 18, d-block elements, coloured complexes, qualitative analysis"],
+["Basic concepts of organic chemistry","nomenclature, isomerism, electronic effects, types of reactions, reactive intermediates"],
+["Hydrocarbons and halohydrocarbons","alkanes, alkenes, alkynes, arenes, halogenoalkanes, substitution and elimination mechanisms"],
+["Oxygen containing organic compounds","alcohols, phenols, ethers, aldehydes, ketones, carboxylic acids and their derivatives"],
+["Nitrogen containing organic compounds","amines, amides, nitriles, diazonium salts, related reactions and tests"],
+["Chemical kinetics","rate of reaction, rate law, order, rate constant, Arrhenius equation, reaction mechanisms, catalysis"],
+["Equilibrium","chemical equilibria (Kc, Kp), acid-base equilibria, pH, buffers, indicators and titration curves, solubility product, homogeneous and heterogeneous phase equilibria"],
+["Electrochemistry","electrode potentials, electrochemical cells, Nernst equation, electrolysis, Faraday's laws"],
+["Industrial chemistry and environmental pollution","industrial processes and their chemistry, polymers, fuels, air, water and soil pollution"]
+],rules:"EXAM FORMAT: Chemistry Paper I is typically 50 multiple-choice questions with five options; Paper II has structured and essay questions. Write chemical formulae and equations with \\ce{...} inside $...$, for example $\\ce{2H2 + O2 -> 2H2O}$, and include states and conditions. Use the units mol dm^-3 and cm^3 as in Sri Lankan papers."}
+};
+const SHORT={cm:'Combined Maths',ph:'Physics',ch:'Chemistry',gm:'Maths'};
+const EXS={
+ cm:[['Pure','Prove by induction that $\\sum_{r=1}^{n} r^3 = \\left(\\tfrac{n(n+1)}{2}\\right)^2$.'],['Calculus','Differentiate $y = x^2 e^{3x}$ and find its stationary points.'],['Applied','A particle is projected at 20 m/s at 30° above the horizontal. Find its range and greatest height.'],['Statics','Two forces of 5 N and 8 N act at a point with 60° between them. Find the magnitude and direction of the resultant.']],
+ ph:[['Mechanics','A 3 kg block slides down a rough 30° slope with μ = 0.2. Find its acceleration.'],['Waves','How do stationary waves form in a pipe closed at one end? Find the first three resonant frequencies of a 0.6 m pipe.'],['Electricity','A cell of emf 6 V and internal resistance 1 Ω drives a 5 Ω resistor. Find the terminal voltage and the power wasted in the cell.'],['Modern physics','Light of wavelength 400 nm falls on a metal of work function 2.1 eV. Find the maximum kinetic energy of the photoelectrons.']],
+ ch:[['Calculations','25.0 cm³ of 0.100 mol dm⁻³ NaOH needs 20.0 cm³ of HCl to neutralise it. Find the HCl concentration.'],['Equilibrium','Find the pH of a buffer made from 0.10 mol dm⁻³ ethanoic acid and 0.20 mol dm⁻³ sodium ethanoate (Ka = 1.8 × 10⁻⁵).'],['Organic','Explain the mechanism of the reaction between bromoethane and aqueous sodium hydroxide.'],['Energetics','Draw the Born-Haber cycle for sodium chloride and explain how the lattice enthalpy is found.']],
+ gm:[['Calculus','Differentiate $y = x^2 e^{3x}$ and find its stationary points.'],['Proof','Prove by induction that $\\sum_{r=1}^{n} r^3 = \\left(\\tfrac{n(n+1)}{2}\\right)^2$.'],['Statistics','Why does the Normal approximation to a Binomial need a continuity correction?'],['Mechanics','A 3 kg block slides down a rough 30° slope with μ = 0.2. Find its acceleration.']]
+};
+function subjCode(){return S.syl==='lk'?S.subj:'gm'}
+function ctxName(){return S.syl==='lk'?'Sri Lankan G.C.E. Advanced Level '+SUBJ[S.subj].name+' (National Institute of Education syllabus)':SYL[S.syl]}
+function unitInfo(n){if(S.syl!=='lk')return '';const u=SUBJ[S.subj].units.find(x=>x[0]===n);return u?u[1]:''}
+function roleLine(){return S.syl==='lk'?'You are Proof Room, a patient and rigorous tutor for the Sri Lankan G.C.E. Advanced Level '+SUBJ[S.subj].name+' syllabus set by the National Institute of Education.':'You are Proof Room, a patient and rigorous A-Level mathematics tutor covering Pure Mathematics, Mechanics and Statistics for this syllabus: '+SYL[S.syl]+'.'}
+function syllabusBlock(){
+  if(S.syl!=='lk')return '';const s=SUBJ[S.subj];
+  return '\nSYLLABUS. Answer according to these units of the '+s.name+' syllabus. Use its terminology, notation, methods and SI units. Name the unit a question belongs to. If something goes beyond the syllabus, say so briefly and still help.\n'+s.units.map((u,i)=>(i+1)+'. '+u[0]+': '+u[1]).join('\n')+'\n'+s.rules+'\n';
+}
+function renderTopicChips(){
+  const t=$('#topics');t.querySelectorAll('.chip:not(.quiz)').forEach(x=>x.remove());
+  TOPICS.forEach(n=>{const b=document.createElement('button');b.className='chip';b.textContent=n;b.setAttribute('aria-pressed',String(S.topic===n));
+    b.onclick=()=>{S.topic=S.topic===n?'':n;t.querySelectorAll('.chip:not(.quiz)').forEach(x=>x.setAttribute('aria-pressed',String(x.textContent===S.topic)))};t.append(b)});
+}
+function fixKeys(){let ch=false;for(const k of Object.keys(prog.topics)){if(!k.includes('|')){prog.topics['gm|'+k]=prog.topics[k];delete prog.topics[k];ch=true}}if(ch)saveProg()}
+function keyLabel(k){const i=k.indexOf('|');return (SHORT[k.slice(0,i)]||'Maths')+' · '+k.slice(i+1)}
+function practiseKey(k){
+  const i=k.indexOf('|'),c=k.slice(0,i),t=k.slice(i+1);closeSheets();
+  if(c==='gm'){if(S.syl==='lk')S.syl='ex'}else{S.syl='lk';S.subj=c}
+  save();applySubject();openPractice(TOPICS.includes(t)?t:'');
+}
+function applySubject(){
+  TOPICS=S.syl==='lk'?SUBJ[S.subj].units.map(u=>u[0]):GEN_TOPICS.slice();
+  S.topic='';P.topic='';
+  EXAMPLES=EXS[subjCode()];
+  $('#subj-wrap').hidden=S.syl!=='lk';
+  $('#brandsub').textContent=S.syl==='lk'?'A/L '+SHORT[S.subj]+' tutor':'A-Level maths tutor';
+  renderTopicChips();fixKeys();
+  if(P.q&&P.q.subj!==subjCode()){P.q=null;P.res=null;P.hint='';P.sol=false}
+  if(!S.turns.length)welcome();
+  syncSettings();
+  if(!$('#practice').hidden)prRender();
+}
+
+/* ---------- images ---------- */
+const isImg=f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(f.name||'')||!f.type||f.type==='application/octet-stream';
+async function normImage(f){
+  const ok=['image/jpeg','image/png','image/webp'].includes(f.type);
+  try{
+    let bmp;
+    try{bmp=await createImageBitmap(f)}catch(e){
+      bmp=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('decode'));im.src=URL.createObjectURL(f)})}
+    const w=bmp.width||bmp.naturalWidth,h=bmp.height||bmp.naturalHeight,k=Math.min(1,1600/Math.max(w,h));
+    const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+    const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86));return b||(ok?f:null);
+  }catch(e){return ok?f:null}
+}
+
+/* ---------- read aloud ---------- */
+function primeSpeech(){try{if('speechSynthesis' in window&&S.speak){const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}catch(e){}}
+function addListen(body,text){
+  const msg=body.closest('.msg');if(!msg||msg.querySelector('.acts'))return;
+  const a=document.createElement('div');a.className='acts';const b=document.createElement('button');b.className='chip';b.textContent='Listen';
+  b.onclick=()=>{stopSpeech();speakOut(text,true)};a.append(b);msg.append(a);
+}
+function speakOut(t,force){
+  const after=()=>{speaking=false;if(T.on&&!force&&!S.busy){talkListen();return}if(S.hands&&!S.busy&&!force)startListen()};
+  if((!S.speak&&!force)||!t){after();return}
+  if(!('speechSynthesis' in window)){if(!spokeNoVoice){note('Read-aloud is not supported in this browser.',6000);spokeNoVoice=true}after();return}
+  const v=pickVoice();
+  if(!v&&S.lang!=='en'&&speechSynthesis.getVoices().length){if(!spokeNoVoice){note('This device has no '+LANGS[S.lang].label+' voice installed, so answers stay as text.',6000);spokeNoVoice=true}after();return}
+  const parts=[];(t.match(/[^.!?।]+[.!?।]*\s*/g)||[t]).forEach(x=>{const l=parts[parts.length-1];if(l&&l.length+x.length<170)parts[parts.length-1]=l+x;else parts.push(x)});
+  const id=++speakSeq;if(T.on&&!force)talkSet('speak','Speaking. Tap to interrupt.');
+  speechSynthesis.cancel();speaking=true;let i=0,failed=false,started=false;
+  const next=()=>{
+    if(id!==speakSeq)return;
+    if(i>=parts.length||failed){after();return}
+    const u=new SpeechSynthesisUtterance(parts[i++]);u.lang=LANGS[S.lang].tts;if(v)u.voice=v;u.rate=0.98;
+    u.onstart=()=>{started=true};u.onend=next;
+    u.onerror=e=>{if(id!==speakSeq||e.error==='interrupted'||e.error==='canceled')return;failed=true;note('Could not play audio ('+(e.error||'unknown')+'). Check that the volume is up, then tap Listen under the answer.',7000);after()};
+    speechSynthesis.speak(u);
+  };
+  next();
+  setTimeout(()=>{if(!started&&speaking&&!failed)note('No sound started. Check the volume and silent switch, then tap Listen under the answer.',7000)},3000);
+}
+
+/* ---------- talk mode: a continuous voice conversation ---------- */
+const T={on:false,state:'',rec:null,silent:0};
+function talkSet(st,msg){T.state=st;$('#talkbar').dataset.st=st;$('#tb-state').textContent=msg}
+const MIC_BLOCKED='Microphone access was denied. Tap the lock icon next to the address bar, allow the microphone for this site, then tap Talk again.';
+function talkStart(){
+  if(T.on)return;
+  if(!SR){note('Voice input is not supported by this browser. Try Chrome or Safari, or use your keyboard\'s dictation key.',7000);return}
+  if(!needSample())return;
+  $('#settings').hidden=true;$('#gear').setAttribute('aria-expanded','false');
+  stopSpeech();stopListen(true);
+  T.on=true;T.silent=0;S.speak=true;S.hands=false;syncSettings();primeSpeech();
+  $('#composer').hidden=true;$('#addrow')&&($('#addrow').hidden=true);$('#talkbar').hidden=false;$('#note').classList.remove('show');
+  if(!S.turns.length)chat.querySelector('.welcome')?.remove();
+  talkListen();
+}
+function talkStop(msg){
+  T.on=false;speakSeq++;
+  try{T.rec&&T.rec.abort()}catch(e){}T.rec=null;
+  if(S.busy&&S.ctl)S.ctl.abort();
+  stopSpeech();
+  $('#talkbar').hidden=true;$('#composer').hidden=false;$('#tb-text').textContent='';
+  if(msg)note(msg,7000);
+}
+function talkListen(){
+  if(!T.on||S.busy)return;
+  stopSpeech();
+  const r=new SR();T.rec=r;r.lang=LANGS[S.lang].stt;r.interimResults=true;r.continuous=false;
+  let fin='',err='';
+  talkSet('listen','Listening. Tap to send.');$('#tb-text').textContent='';
+  r.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const x=e.results[i];if(x.isFinal)fin+=x[0].transcript;else interim+=x[0].transcript}$('#tb-text').textContent=(fin+interim).trim()};
+  r.onerror=e=>{err=e.error;
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){voiceBlocked=false;talkStop(MIC_BLOCKED)}
+    else if(e.error==='audio-capture')talkStop('No microphone was found on this device.');
+    else if(e.error==='language-not-supported')talkStop('Voice input is not available for this language on your device. Switch the language to English in Settings.');
+    else if(e.error==='network')talkStop('Speech recognition needs an internet connection.')};
+  r.onend=()=>{
+    if(T.rec===r)T.rec=null;
+    if(!T.on||T.rec)return;
+    const text=fin.trim();
+    if(text){T.silent=0;talkSet('think','Thinking…');$('#tb-text').textContent=text;send(text);return}
+    if(err==='aborted')return;
+    T.silent++;
+    if(T.silent>=4)talkSet('paused','Paused. Tap to keep talking.');
+    else setTimeout(()=>{if(T.on&&!S.busy&&!T.rec&&T.state==='listen')talkListen()},200);
+  };
+  try{r.start()}catch(e){T.rec=null;talkStop('Could not start the microphone.')}
+}
+$('#tb-orb').onclick=()=>{
+  if(!T.on)return;
+  if(T.state==='listen'){try{T.rec&&T.rec.stop()}catch(e){}}
+  else if(T.state==='speak'){stopSpeech();talkListen()}
+  else if(T.state==='think'){if(S.ctl)S.ctl.abort();talkSet('paused','Stopped. Tap to talk.')}
+  else{T.silent=0;talkListen()}
+};
+$('#tb-end').onclick=()=>talkStop();
+chat.addEventListener('click',e=>{if(e.target.closest('.talkcta'))talkStart()});
+applySubject();
+$('#keysave').onclick=saveKey;$('#keyin').addEventListener('keydown',e=>{if(e.key==='Enter')saveKey()});
+$('#chg-key').onclick=()=>{$('#settings').hidden=true;$('#gear').setAttribute('aria-expanded','false');showKeyBox(true)};
+modelInfo();if(!getKey())showKeyBox(true);
+syncSettings();syncMic();welcome();
+if('speechSynthesis' in window)speechSynthesis.getVoices();
+})();
+</script>
+
+</body></html>
